@@ -606,39 +606,39 @@ def get_update_delete_transaction(request, transaction_id):
     DELETE /api/transaction/<transaction_id>/
     """
     if request.method == 'GET':
-        try:
-            transaction = Transaction.objects.get(id=transaction_id)
-        except Transaction.DoesNotExist:
-            return Response({ 'message': "Transaction not found"}, status= status.HTTP_404_NOT_FOUND)
+      try:
+        transaction = Transaction.objects.get(id=transaction_id)
+      except Transaction.DoesNotExist:
+        return Response({ 'message': "Transaction not found"}, status= status.HTTP_404_NOT_FOUND)
 
-        serializer = TransactionSerializer(transaction)
-        return Response({'message:': 'Success', 'data': serializer.data}, status=status.HTTP_200_OK)
+      serializer = TransactionSerializer(transaction)
+      return Response({'message:': 'Success', 'data': serializer.data}, status=status.HTTP_200_OK)
     elif request.method == 'PATCH':
-        try:
-            transaction = Transaction.objects.get(id=transaction_id)
-        except Transaction.DoesNotExist:
-            return Response({ 'message': "Transaction not found"}, status= status.HTTP_404_NOT_FOUND)
+      try:
+        transaction = Transaction.objects.get(id=transaction_id)
+      except Transaction.DoesNotExist:
+        return Response({ 'message': "Transaction not found"}, status= status.HTTP_404_NOT_FOUND)
 
-        serializer = TransactionSerializer(transaction, data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
+      serializer = TransactionSerializer(transaction, data=request.data, partial=True)
+      serializer.is_valid(raise_exception=True)
+      serializer.save()
 
-        return Response({
-          'message': 'Transaksi berhasil diupdate',
-          'data': serializer.data
-        }, status=status.HTTP_200_OK)
+      return Response({
+        'message': 'Transaksi berhasil diupdate',
+        'data': serializer.data
+      }, status=status.HTTP_200_OK)
 
     elif request.method == 'DELETE':    
-        try:
-            transaction = Transaction.objects.get(id=transaction_id)
-        except Transaction.DoesNotExist:
-            return Response({ 'message': "Transaction not found"}, status= status.HTTP_404_NOT_FOUND)
+      try:
+        transaction = Transaction.objects.get(id=transaction_id)
+      except Transaction.DoesNotExist:
+        return Response({ 'message': "Transaction not found"}, status= status.HTTP_404_NOT_FOUND)
 
-        transaction.delete()
+      transaction.delete()
 
-        return Response({
-          'message': 'Transaksi berhasil dihapus',
-        }, status=status.HTTP_200_OK)
+      return Response({
+        'message': 'Transaksi berhasil dihapus',
+      }, status=status.HTTP_200_OK)
 
     # transaction = Transaction.objects.get(id=transaction_id)
     # serializer = TransactionSerializer(transaction)
