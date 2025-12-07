@@ -162,8 +162,13 @@ def change_password(request, user_id):
     }, status=status.HTTP_200_OK)
 
 @api_view(['GET', 'PATCH', 'DELETE'])
-def get_user_by_id(request, user_id):
-
+def get_update_delete_user(request, user_id):
+  """
+  Mendapatkan, mengupdate, atau menghapus user berdasarkan ID
+  GET /api/users/<user_id>/
+  PATCH /api/users/<user_id>/
+  DELETE /api/users/<user_id>/
+  """
   if user_id != request.user.id and not request.user.role == 'admin':
     return Response({
       'message': 'Anda tidak memiliki izin untuk mengakses data ini'
@@ -192,55 +197,56 @@ def get_user_by_id(request, user_id):
     role = request.data.get('role')
     phone = request.data.get('phone')
 
+    updates = []
+    params = []
+    
+    if first_name is not None:
+      updates.append('first_name = %s')
+      params.append(first_name)
+    
+    if last_name is not None:
+      updates.append('last_name = %s')
+      params.append(last_name)
+    
+    if username is not None:
+      updates.append('username = %s')
+      params.append(username)
+    
+    if email is not None:
+      updates.append('email = %s')
+      params.append(email)
+    
+    if role is not None:
+      updates.append('role = %s')
+      params.append(role)
+    
+    if phone is not None:
+      updates.append('phone = %s')
+      params.append(phone)
+    
+    updates.append('updated_at = NOW()')
+
+    if len(params) == 0:
+      return Response({
+        'message': 'Tidak ada data yang diupdate'
+      }, status=status.HTTP_400_BAD_REQUEST)
+    
+    params.append(user_id)
+
+    sql = f"""
+          UPDATE users 
+          SET {', '.join(updates)}
+          WHERE id = %s
+          RETURNING first_name, last_name, username, email, role, phone
+        """
+
     with connection.cursor() as cursor:
-      cursor.execute(f"SELECT id FROM users WHERE id = {user_id}")
+      cursor.execute("SELECT id FROM users WHERE id = %s", [user_id])
       if not cursor.fetchone():
         return Response({
           'message': 'User tidak ditemukan'
         }, status = status.HTTP_404_NOT_FOUND)
       
-      updates = []
-      params = []
-      
-      if first_name is not None:
-        updates.append('first_name = %s')
-        params.append(first_name)
-      
-      if last_name is not None:
-        updates.append('last_name = %s')
-        params.append(last_name)
-      
-      if username is not None:
-        updates.append('username = %s')
-        params.append(username)
-      
-      if email is not None:
-        updates.append('email = %s')
-        params.append(email)
-      
-      if role is not None:
-        updates.append('role = %s')
-        params.append(role)
-      
-      if phone is not None:
-        updates.append('phone = %s')
-        params.append(phone)
-      
-      updates.append('updated_at = NOW()')
-
-      if len(params) == 0:
-        return Response({
-          'message': 'Tidak ada data yang diupdate'
-        }, status=status.HTTP_400_BAD_REQUEST)
-      
-      params.append(user_id)
-
-      sql = f"""
-            UPDATE users 
-            SET {', '.join(updates)}
-            WHERE id = %s
-            RETURNING first_name, last_name, username, email, role, phone
-        """
       cursor.execute(sql, params)
 
       columns = [col[0] for col in cursor.description]
@@ -280,22 +286,84 @@ def get_all_categories(request):
 
   return Response({'message:': 'Success', 'data': result}, status=status.HTTP_200_OK)
 
-@api_view(['GET'])
-def get_category_by_id(request, category_id):
+@api_view(['GET', 'PATCH', 'DELETE'])
+def get_update_delete_category(request, category_id):
   """
-  Mendapatkan kategori produk berdasarkan ID
+  Mendapatkan, mengupdate, atau menghapus kategori produk berdasarkan ID
   GET /api/category/<category_id>/
+  PATCH /api/category/<category_id>/
+  DELETE /api/category/<category_id>/
   """
-  with connection.cursor() as cursor:
-    cursor.execute("SELECT name, description, created_at, updated_at FROM category WHERE id = %s", [category_id])
-    row = cursor.fetchone()
-    if not row:
-      return Response({'message': 'Category not found'}, status=status.HTTP_404_NOT_FOUND)
-    
-    columns = [col[0] for col in cursor.description]
-    category_data = dict(zip(columns, row))
+  if request.method == 'GET':
+    with connection.cursor() as cursor:
+      cursor.execute("SELECT name, description, created_at, updated_at FROM category WHERE id = %s", [category_id])
+      row = cursor.fetchone()
+      if not row:
+        return Response({'message': 'Category not found'}, status=status.HTTP_404_NOT_FOUND)
+      
+      columns = [col[0] for col in cursor.description]
+      category_data = dict(zip(columns, row))
 
-  return Response({'message:': 'Success', 'data': category_data}, status=status.HTTP_200_OK)
+    return Response({'message:': 'Success', 'data': category_data}, status=status.HTTP_200_OK)
+
+  elif request.method == 'PATCH':
+    name = request.data.get('name')
+    description = request.data.get('description')
+
+    updates = []
+    params = []
+
+    if name is not None:
+      updates.append('name = %s')
+      params.append(name)
+    
+    if description is not None:
+      updates.append('description = %s')
+      params.append(description)
+    
+    updates.append('updated_at = NOW()')
+
+    with connection.cursor() as cursor:
+      cursor.execute("SELECT id FROM category WHERE id = %s", [category_id])
+      if not cursor.fetchone():
+        return Response({'message': 'Category not found'}, status=status.HTTP_404_NOT_FOUND)
+      
+      if len(params) == 0:
+        return Response({
+          'message': 'Tidak ada data yang diupdate'
+        }, status=status.HTTP_400_BAD_REQUEST)
+      
+      params.append(category_id)
+
+      sql = f"""
+            UPDATE category 
+            SET {', '.join(updates)}
+            WHERE id = %s
+            RETURNING name, description, created_at, updated_at
+        """
+      cursor.execute(sql, params)
+
+      columns = [col[0] for col in cursor.description]
+      category_data = dict(zip(columns, cursor.fetchone()))
+
+    return Response({
+        'message': 'Kategori produk berhasil diupdate',
+        'data': category_data
+    }, status=status.HTTP_200_OK)
+
+  elif request.method == 'DELETE':
+    with connection.cursor() as cursor:
+      cursor.execute("SELECT id FROM category WHERE id = %s", [category_id])
+      if not cursor.fetchone():
+        return Response({'message': 'Category not found'}, status=status.HTTP_404_NOT_FOUND)
+      
+      cursor.execute("UPDATE product SET category_id = NULL WHERE category_id = %s", [category_id])
+      
+      cursor.execute("DELETE FROM category WHERE id = %s", [category_id])
+    
+    return Response({
+      'message': 'Kategori produk berhasil dihapus'
+    }, status=status.HTTP_200_OK)
 
 @api_view(['POST'])
 def create_category(request):
@@ -413,31 +481,61 @@ def get_all_products(request):
   return Response({'message:': 'Success', 'data': serializer.data}, status=status.HTTP_200_OK)
 
 
-@api_view(['GET'])
-def get_product_by_id(request, product_id):
+@api_view(['GET', 'PATCH', 'DELETE'])
+def get_update_delete_product(request, product_id):
   """
-  Mendapatkan produk berdasarkan ID
+  Mendapatkan, mengupdate, atau menghapus produk berdasarkan ID
   GET /api/product/<product_id>/
+  PATCH /api/product/<product_id>/
+  DELETE /api/product/<product_id>/
   """
 
-  try:
-    product = Product.objects.get(id=product_id)
-  except Product.DoesNotExist:
-    return Response({ 'message': "Product not found"}, status= status.HTTP_404_NOT_FOUND)
+  if request.method == 'GET':
+    try:
+      product = Product.objects.get(id=product_id)
+    except Product.DoesNotExist:
+      return Response({ 'message': "Product not found"}, status= status.HTTP_404_NOT_FOUND)
 
-  result = ProductSerializer(product).data
+    result = ProductSerializer(product).data
 
-  # with connection.cursor() as cursor:
-  #   cursor.execute(f"SELECT * FROM product WHERE id = {product_id}")
-  #   rows = cursor.fetchall()
+    # with connection.cursor() as cursor:
+    #   cursor.execute(f"SELECT * FROM product WHERE id = {product_id}")
+    #   rows = cursor.fetchall()
 
-  #   if not rows:
-  #     return Response({ 'message': "Product not found"}, status= status.HTTP_404_NOT_FOUND)
+    #   if not rows:
+    #     return Response({ 'message': "Product not found"}, status= status.HTTP_404_NOT_FOUND)
 
-  #   columns = [col[0] for col in cursor.description]
-  #   result = [dict(zip(columns, row)) for row in rows]
+    #   columns = [col[0] for col in cursor.description]
+    #   result = [dict(zip(columns, row)) for row in rows]
 
-  return Response({'message:': 'Success', 'data': result}, status=status.HTTP_200_OK)
+    return Response({'message:': 'Success', 'data': result}, status=status.HTTP_200_OK)
+  
+  elif request.method == 'PATCH':
+    try:
+      product = Product.objects.get(id=product_id)
+    except Product.DoesNotExist:
+      return Response({ 'message': "Product not found"}, status= status.HTTP_404_NOT_FOUND)
+
+    serializer = ProductSerializer(product, data=request.data, partial=True)
+    serializer.is_valid(raise_exception=True)
+    serializer.save()
+
+    return Response({
+      'message': 'Produk berhasil diupdate',
+      'data': serializer.data
+    }, status=status.HTTP_200_OK)
+  
+  elif request.method == 'DELETE':
+    try:
+      product = Product.objects.get(id=product_id)
+    except Product.DoesNotExist:
+      return Response({ 'message': "Product not found"}, status= status.HTTP_404_NOT_FOUND)
+
+    product.delete()
+
+    return Response({
+      'message': 'Produk berhasil dihapus'
+    }, status=status.HTTP_200_OK)
 
 @api_view(['POST'])
 @transaction.atomic  # Rollback kalau error
@@ -499,15 +597,52 @@ def get_all_transactions(request):
     serializer = TransactionSerializer(transactions, many=True)
     return Response(serializer.data)
 
-@api_view(['GET'])
-def get_transaction_by_id(request, transaction_id):
+@api_view(['GET', 'PATCH', 'DELETE'])
+def get_update_delete_transaction(request, transaction_id):
     """
-    Mendapatkan detail transaksi berdasarkan ID
+    Mendapatkan, mengupdate, atau menghapus transaksi berdasarkan ID
     GET /api/transaction/<transaction_id>/
+    PATCH /api/transaction/<transaction_id>/
+    DELETE /api/transaction/<transaction_id>/
     """
-    transaction = Transaction.objects.get(id=transaction_id)
-    serializer = TransactionSerializer(transaction)
-    return Response(serializer.data)
+    if request.method == 'GET':
+        try:
+            transaction = Transaction.objects.get(id=transaction_id)
+        except Transaction.DoesNotExist:
+            return Response({ 'message': "Transaction not found"}, status= status.HTTP_404_NOT_FOUND)
+
+        serializer = TransactionSerializer(transaction)
+        return Response({'message:': 'Success', 'data': serializer.data}, status=status.HTTP_200_OK)
+    elif request.method == 'PATCH':
+        try:
+            transaction = Transaction.objects.get(id=transaction_id)
+        except Transaction.DoesNotExist:
+            return Response({ 'message': "Transaction not found"}, status= status.HTTP_404_NOT_FOUND)
+
+        serializer = TransactionSerializer(transaction, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        return Response({
+          'message': 'Transaksi berhasil diupdate',
+          'data': serializer.data
+        }, status=status.HTTP_200_OK)
+
+    elif request.method == 'DELETE':    
+        try:
+            transaction = Transaction.objects.get(id=transaction_id)
+        except Transaction.DoesNotExist:
+            return Response({ 'message': "Transaction not found"}, status= status.HTTP_404_NOT_FOUND)
+
+        transaction.delete()
+
+        return Response({
+          'message': 'Transaksi berhasil dihapus',
+        }, status=status.HTTP_200_OK)
+
+    # transaction = Transaction.objects.get(id=transaction_id)
+    # serializer = TransactionSerializer(transaction)
+    # return Response(serializer.data)
 
 
   # serializer = UserSerializer(data=request.data)
