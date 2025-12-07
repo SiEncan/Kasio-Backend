@@ -2,6 +2,11 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 from rest_framework import status
+
+from rest_framework.views import APIView
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
+
 from .models import User, Product, Transaction
 from .serializer import UserSerializer, CreateUserSerializer, CategorySerializer, ProductSerializer, \
   TransactionSerializer
@@ -9,6 +14,33 @@ from django.db import connection, transaction
 from django.contrib.auth.hashers import make_password, check_password
 import uuid
 
+
+class LogoutView(APIView):
+  """
+  Logout user dengan blacklisting refresh token
+  POST /api/auth/logout/
+  Body: {
+    "refresh": "refresh_token_here"
+  }
+  """
+  def post(self, request):
+    refresh_token = request.data.get("refresh")
+    if not refresh_token:
+        return Response({"error": "Refresh token required"}, status=400)
+    try:
+
+      # Parse token untuk cek siapa owner-nya
+      token_obj = RefreshToken(refresh_token)
+      token_user_id = str(token_obj['user_id'])  # user_id di token
+
+      if token_user_id != str(request.user.id):
+        return Response({"error": "Tidak bisa logout token user lain"}, status=403)
+
+      token_obj.blacklist()  # invalidate token
+      return Response({"message": "Logout berhasil"}, status=status.HTTP_205_RESET_CONTENT)
+    except (TokenError, InvalidToken) as e:
+      return Response({"error": "Invalid token"}, status=status.HTTP_400_BAD_REQUEST)
+      
 @api_view(['GET'])
 def get_all_users(request):
   """
@@ -609,7 +641,7 @@ def get_update_delete_transaction(request, transaction_id):
       try:
         transaction = Transaction.objects.get(id=transaction_id)
       except Transaction.DoesNotExist:
-        return Response({ 'message': "Transaction not found"}, status= status.HTTP_404_NOT_FOUND)
+        return Response({ 'message': "Transaction not found"}, status=status.HTTP_404_NOT_FOUND)
 
       serializer = TransactionSerializer(transaction)
       return Response({'message:': 'Success', 'data': serializer.data}, status=status.HTTP_200_OK)
@@ -617,7 +649,7 @@ def get_update_delete_transaction(request, transaction_id):
       try:
         transaction = Transaction.objects.get(id=transaction_id)
       except Transaction.DoesNotExist:
-        return Response({ 'message': "Transaction not found"}, status= status.HTTP_404_NOT_FOUND)
+        return Response({ 'message': "Transaction not found"}, status=status.HTTP_404_NOT_FOUND)
 
       serializer = TransactionSerializer(transaction, data=request.data, partial=True)
       serializer.is_valid(raise_exception=True)
@@ -632,7 +664,7 @@ def get_update_delete_transaction(request, transaction_id):
       try:
         transaction = Transaction.objects.get(id=transaction_id)
       except Transaction.DoesNotExist:
-        return Response({ 'message': "Transaction not found"}, status= status.HTTP_404_NOT_FOUND)
+        return Response({ 'message': "Transaction not found"}, status=status.HTTP_404_NOT_FOUND)
 
       transaction.delete()
 
