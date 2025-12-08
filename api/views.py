@@ -11,9 +11,9 @@ from .models import User, Product, Transaction
 from .serializer import UserSerializer, CreateUserSerializer, CategorySerializer, ProductSerializer, \
   TransactionSerializer
 from django.db import connection, transaction
+from django.db.models import Q
 from django.contrib.auth.hashers import make_password, check_password
 import uuid
-
 
 class LogoutView(APIView):
   """
@@ -486,6 +486,92 @@ def create_product(request):
     'data': product_data
   }, status=status.HTTP_201_CREATED)
 
+# ################################           RAW QUERY                #########################################################################
+# @api_view(['GET'])
+# def search_products(request):
+#   """
+#   Mencari produk berdasarkan berbagai kriteria
+#   GET /api/products/search/?name=kopi&category=2&min_price=5000&max_price=20000
+#   """
+#   name = request.GET.get('name', '')
+#   category_id = request.GET.get('category', '')
+#   min_price = request.GET.get('min_price', '')
+#   max_price = request.GET.get('max_price', '')
+#   is_available = request.GET.get('available', '')
+  
+#   query = []
+#   params = []
+#   if name:
+#     query.append('LOWER(name) LIKE %s')
+#     params.append(f"%{name.lower()}%")
+  
+#   if category_id:
+#     query.append('category_id = %s')
+#     params.append(category_id)
+
+#   if min_price:
+#     query.append('price >= %s')
+#     params.append(min_price)
+
+#   if max_price:
+#     query.append('price <= %s')
+#     params.append(max_price)
+
+#   if is_available:
+#     query.append('is_available = %s')
+#     params.append(is_available)
+
+#   where_sql = " AND ".join(query)
+#   print(where_sql)
+
+#   with connection.cursor() as cursor:
+
+#     cursor.execute(f"SELECT * FROM product WHERE {where_sql}", params)
+#     rows = cursor.fetchall()
+#     columns = [col[0] for col in cursor.description]
+#     result = [dict(zip(columns, row)) for row in rows]
+  
+#   return Response({
+#     'message': 'success',
+#     'data': result
+#   }, status=status.HTTP_200_OK)
+
+# ################################           ORM                #########################################################################
+@api_view(['GET'])
+def search_products(request):
+  """
+  Mencari produk berdasarkan berbagai kriteria
+  GET /api/products/search/?name=kopi&category=2&min_price=5000&max_price=20000
+  """
+
+  name = request.GET.get('name', '')
+  category_id = request.GET.get('category', '')
+  min_price = request.GET.get('min_price', '')
+  max_price = request.GET.get('max_price', '')
+  is_available = request.GET.get('available', '')
+  
+  products = Product.objects.all()
+  
+  if name:
+    products = products.filter(Q(name__icontains=name))
+  if category_id:
+    products = products.filter(category_id=category_id)
+  if min_price:
+    products = products.filter(price__gte=min_price)
+  if max_price:
+    products = products.filter(price__lte=max_price)
+  if is_available:
+    products = products.filter(is_available=is_available.lower() == 'true')
+  
+  # Serialize
+  serializer = ProductSerializer(products, many=True)
+  
+  return Response({
+    'message': 'Success',
+    'count': products.count(),
+    'data': serializer.data
+  })
+
 @api_view(['GET'])
 def get_all_products(request):
   """
@@ -496,8 +582,8 @@ def get_all_products(request):
   products = Product.objects.all()
   serializer = ProductSerializer(products, many=True)
 
-  # with connection.cursor() as cursor:
   #   #  JOIN manual
+  # with connection.cursor() as cursor:
   #   cursor.execute("""
   #       SELECT 
   #           p.id, p.name, p.price, p.category_id,
