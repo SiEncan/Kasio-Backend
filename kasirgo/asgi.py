@@ -1,5 +1,5 @@
 """
-ASGI config for cashierapp project.
+ASGI config for kasirgo project.
 
 It exposes the ASGI callable as a module-level variable named ``application``.
 
@@ -11,6 +11,6 @@ import os
 
 from django.core.asgi import get_asgi_application
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'cashierapp.settings')
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'kasirgo.settings')
 
 application = get_asgi_application()

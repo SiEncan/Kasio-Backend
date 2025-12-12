@@ -197,9 +197,9 @@ def change_password(request, user_id):
 def get_update_delete_user(request, user_id):
   """
   Mendapatkan, mengupdate, atau menghapus user berdasarkan ID
-  GET /api/users/<user_id>/
-  PATCH /api/users/<user_id>/
-  DELETE /api/users/<user_id>/
+  GET /api/user/<user_id>/
+  PATCH /api/user/<user_id>/
+  DELETE /api/user/<user_id>/
   """
   if user_id != request.user.id and not request.user.role == 'admin':
     return Response({
@@ -209,8 +209,8 @@ def get_update_delete_user(request, user_id):
   if request.method == 'GET':
 
     with connection.cursor() as cursor:
-      cursor.execute(f"SELECT username, email, first_name, last_name, role, phone, is_active, date_joined, last_login \
-      FROM users WHERE id = {user_id}")
+      cursor.execute("SELECT username, email, first_name, last_name, role, phone, is_active, date_joined, last_login \
+      FROM users WHERE id = %s", (user_id,))
 
       user = cursor.fetchone()
       if not user:
