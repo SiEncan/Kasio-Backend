@@ -869,13 +869,6 @@ def list_transactions(request):
 
 
 # ==================== PAYMENT (DUITKU) ENDPOINTS ====================
-
-def get_duitku_signature(merchant_code, merchant_order_id, amount, api_key):
-  """Generate signature untuk Duitku API"""
-  signature_string = f"{merchant_code}{merchant_order_id}{amount}{api_key}"
-  return hashlib.md5(signature_string.encode()).hexdigest()
-
-
 @api_view(['POST'])
 @transaction.atomic
 def create_payment(request):
@@ -944,7 +937,7 @@ def create_payment(request):
   payment_method = data.get('payment_method', 'SP')
   
   # Generate signature
-  signature = get_duitku_signature(merchant_code, merchant_order_id, amount, api_key)
+  signature = hashlib.md5(f"{merchant_code}{merchant_order_id}{amount}{api_key}".encode()).hexdigest()
   
   # Prepare request to Duitku
   base_url = "https://sandbox.duitku.com" if is_sandbox else "https://passport.duitku.com"
@@ -1082,7 +1075,9 @@ def payment_callback(request):
     # Verify signature
     merchant_code = settings.DUITKU_MERCHANT_CODE
     api_key = settings.DUITKU_API_KEY
-    expected_signature = get_duitku_signature(merchant_code, merchant_order_id, amount, api_key)
+    expected_signature = hashlib.md5(
+      f"{merchant_code}{amount}{merchant_order_id}{api_key}".encode()
+    ).hexdigest()
     
     if signature != expected_signature:
       return Response({
@@ -1154,7 +1149,9 @@ def get_payment_status(request, payment_id):
     api_key = settings.DUITKU_API_KEY
     is_sandbox = settings.DUITKU_IS_SANDBOX
     
-    signature = get_duitku_signature(merchant_code, payment.merchant_order_id, '', api_key)
+    signature = hashlib.md5(
+      f"{merchant_code}{payment.merchant_order_id}{api_key}".encode()
+    ).hexdigest()
     
     base_url = "https://sandbox.duitku.com" if is_sandbox else "https://passport.duitku.com"
     endpoint = f"{base_url}/webapi/api/merchant/transactionStatus"
