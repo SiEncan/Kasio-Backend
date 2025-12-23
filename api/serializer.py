@@ -36,7 +36,7 @@ class TransactionItemSerializer(serializers.ModelSerializer):
 
 class TransactionSerializer(serializers.ModelSerializer):
     items = TransactionItemSerializer(many=True)
-    cashier_name = serializers.CharField(source='cashier.username', read_only=True)
+    cashier_name = serializers.SerializerMethodField()
     customer_name = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     order_type = serializers.ChoiceField(choices=Transaction.ORDER_TYPE_CHOICES, default='dine_in')
     
@@ -45,6 +45,11 @@ class TransactionSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['transaction_number', 'cashier']
     
+    def get_cashier_name(self, obj):
+        if obj.cashier:
+            return f"{obj.cashier.first_name} {obj.cashier.last_name}".strip()
+        return None
+
     def create(self, validated_data):
         items_data = validated_data.pop('items')
         cashier = self.context['request'].user
