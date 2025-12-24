@@ -764,6 +764,26 @@ def list_transactions(request):
     Mendapatkan daftar transaksi dengan filter tanggal dan pagination
     GET /api/transaction/?start_date=2025-12-01&end_date=2025-12-07&page=2&page_size=10
     """
+    # === LAZY UPDATE EXPIRED TRANSACTIONS ===
+    # Cari pembayaran yang statusnya pending DAN sudah lewat waktu expirednya
+    now = timezone.now()
+    expired_payments_qs = Payment.objects.filter(
+        status='pending',
+        expired_at__lt=now
+    )
+    
+    if expired_payments_qs.exists():
+        # Ambil ID transaksi yang terkait sebelum update payment
+        expired_trx_ids = list(expired_payments_qs.values_list('transaction_id', flat=True))
+        
+        # 1. Update status Payment jadi 'expired'
+        expired_payments_qs.update(status='expired')
+        
+        # 2. Update status Transaction jadi 'cancelled'
+        Transaction.objects.filter(id__in=expired_trx_ids).update(status='cancelled')
+
+    # ========================================
+
     transactions = Transaction.objects.all()
 
     page = int(request.GET.get('page', 1))
@@ -1006,6 +1026,7 @@ def create_payment(request):
         'message': 'Payment created successfully',
         'data': {
           'payment_id': payment.id,
+          'transaction_id': trx.id,
           'merchant_order_id': merchant_order_id,
           'reference': response_data.get('reference'),
           'payment_url': response_data.get('paymentUrl'),
@@ -1106,6 +1127,9 @@ def payment_callback(request):
       payment.status = 'pending'
     else:
       payment.status = 'failed'
+      # Update transaction status to cancelled if payment failed
+      payment.transaction.status = 'cancelled'
+      payment.transaction.save()
     
     payment.status_code = result_code
     payment.save()
@@ -1174,8 +1198,12 @@ def get_payment_status(request, payment_id):
         payment.status = 'pending'
       elif response_data.get('statusCode') == '02':
         payment.status = 'cancelled'
+        payment.transaction.status = 'cancelled'
+        payment.transaction.save()
       else:
         payment.status = 'expired'
+        payment.transaction.status = 'cancelled'
+        payment.transaction.save()
       
       payment.status_code = response_data.get('statusCode')
       payment.status_message = response_data.get('statusMessage')
@@ -1188,3 +1216,37 @@ def get_payment_status(request, payment_id):
     'message': 'Success',
     'data': PaymentSerializer(payment).data
   }, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@transaction.atomic
+def cancel_transaction(request, transaction_id):
+    """
+    Membatalkan transaksi secara manual
+    POST /api/transaction/<transaction_id>/cancel/
+    """
+    try:
+        trx = Transaction.objects.get(id=transaction_id)
+    except Transaction.DoesNotExist:
+        return Response({'message': 'Transaction not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    if trx.status == 'completed':
+        return Response({'message': 'Cannot cancel completed transaction'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if trx.status == 'cancelled':
+        return Response({'message': 'Transaction is already cancelled'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Cancel transaction
+    trx.status = 'cancelled'
+    trx.save()
+
+    # Cancel associated pending payments
+    pending_payments = Payment.objects.filter(transaction=trx, status='pending')
+    for payment in pending_payments:
+        payment.status = 'cancelled'
+        payment.save()
+
+    return Response({
+        'message': 'Transaction has been cancelled',
+        'data': TransactionSerializer(trx).data
+    }, status=status.HTTP_200_OK)

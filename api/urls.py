@@ -3,7 +3,8 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from .views import get_all_users, get_update_delete_user, create_user, change_password, create_category, \
                    get_all_categories, get_update_delete_category, search_products, create_product, get_all_products, \
                    get_update_delete_product, create_transaction, get_update_delete_transaction, \
-                   list_transactions, LogoutView, create_payment, payment_callback, get_payment_status
+                   list_transactions, LogoutView, create_payment, payment_callback, get_payment_status, \
+                   cancel_transaction
 
 urlpatterns = [
 
@@ -28,6 +29,7 @@ urlpatterns = [
   path('transaction/', list_transactions, name='list_transactions'),
   path('transaction/<int:transaction_id>/', get_update_delete_transaction, name='get_update_delete_transaction'),
   path('transaction/create/', create_transaction, name='create_transaction'),
+  path('transaction/<int:transaction_id>/cancel/', cancel_transaction, name='cancel_transaction'),
 
   # JWT endpoints
   path('auth/login/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
