@@ -755,7 +755,7 @@ def get_update_delete_transaction(request, transaction_id):
       transaction.delete()
 
       return Response({
-        'message': 'Transaction has been deleted',
+        'message': 'Transaction has been deleted/voided and stock restored',
       }, status=status.HTTP_200_OK)
     
 @api_view(['GET'])

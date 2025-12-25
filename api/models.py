@@ -144,6 +144,16 @@ class Transaction(models.Model):
         
         super().save(*args, **kwargs)
 
+    def delete(self, *args, **kwargs):
+        # Restore stock before deleting
+        for item in self.items.all():
+            if item.product:
+                product = item.product
+                product.stock += item.quantity
+                product.save()
+        
+        super().delete(*args, **kwargs)
+
     def __str__(self):
         return f"{self.transaction_number} - Rp {self.total}"
 
